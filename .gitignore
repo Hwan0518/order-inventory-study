@@ -35,3 +35,7 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### 학습 진행 기록 (개인 진행 상황 — remote에 올리지 않음) ###
+docs/qa-logs/*.md
+!docs/qa-logs/_TEMPLATE.md

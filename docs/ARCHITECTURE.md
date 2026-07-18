@@ -14,8 +14,8 @@
 |---|---|---|
 | `domain` | 엔티티, 값 객체, 도메인 불변식/규칙, 리포지토리 포트(인터페이스) | `Product`, `Inventory`(증감 불변식을 엔티티 메서드로 가짐), `Order`, `InventoryRepository`(포트) |
 | `application` | 유스케이스 오케스트레이션, 트랜잭션 경계(`@Transactional`), 락/재시도 전략 | `OrderService.placeOrder()`, `AdminInventoryService.adjustStock()` |
-| `infrastructure` | 기술 종속적 구현 — JPA 리포지토리 구현체, 락 힌트, 외부 시스템 클라이언트 | `InventoryJpaRepository`(포트 구현 + `@Lock` 등), WMS REST 클라이언트(5단계) |
-| `interfaces` | 외부 진입점 — REST 컨트롤러, DTO | 1~4단계는 최소/미사용, 5단계에서 order↔WMS 통신용으로 도입 |
+| `infrastructure` | 기술 종속적 구현 — JPA 리포지토리 구현체, 락 힌트, 외부 시스템 클라이언트 | `InventoryJpaRepository`(포트 구현 + `@Lock` 등), WMS REST 클라이언트(6단계) |
+| `interfaces` | 외부 진입점 — REST 컨트롤러, DTO | 1~5단계는 최소/미사용, 6단계에서 order↔WMS 통신용으로 도입 |
 
 핵심 로직(내가 비워두고 사용자가 구현할 부분)은 주로 `domain`(엔티티의 증감
 불변식 메서드)과 `application`(유스케이스 흐름, 락/재시도 전략)에 위치한다.
@@ -23,7 +23,7 @@
 
 ## 2. 패키지/코드 구조 규칙
 
-- 패키지: `dh.orderinventory.stage1` ~ `dh.orderinventory.stage5`, 각각 내부에
+- 패키지: `dh.orderinventory.stage1` ~ `dh.orderinventory.stage7`, 각각 내부에
   `domain / application / infrastructure / interfaces` 하위 패키지를 둔다.
 - 각 단계가 테스트까지 통과하면, 최종 코드를 그대로 다음 단계 패키지로 복사하는
   작업은 내가 수행한다 (중복 타이핑 불필요). 이전 단계 패키지는 삭제하지 않고
@@ -36,8 +36,8 @@
   통해 독립적으로 테스트 가능하게 하여 빈 충돌을 막는다. 테스트 설정 자체는
   `dh.orderinventory.testconfig.stageN`에 두어 실행 애플리케이션의 stage 패키지
   스캔에 섞이지 않게 한다.
-- 5단계에서는 Gradle 멀티모듈로 전환한다 (`order-service`, `wms-service`, 필요
-  시 DTO 공유용 `common` 모듈). `settings.gradle.kts` 변경은 5단계 착수 시점에
+- 6단계에서는 Gradle 멀티모듈로 전환한다 (`order-service`, `wms-service`, 필요
+  시 DTO 공유용 `common` 모듈). `settings.gradle.kts` 변경은 6단계 착수 시점에
   진행한다.
 
 ## 3. 구현 스타일 가이드 (보일러플레이트 컨벤션)
@@ -123,14 +123,16 @@ public class OrderService {
   클래스의 `static final` 필드를 static 초기화 블록에서 수동 `start()`하고,
   `@DynamicPropertySource`는 이미 시작된 컨테이너의 접속 정보만 등록한다. 종료는
   Ryuk에 맡기며 테스트 코드에서 직접 `stop()`하지 않는다.
-- 동시성 테스트(3단계~): `ExecutorService` + `CountDownLatch`로 다중 스레드
-  요청을 만들고 최종 재고 수량/주문 결과의 정합성을 검증.
-- 5단계 통신 실패 시뮬레이션: WMS 클라이언트 호출 실패/타임아웃을 재현하기
+- 동시성 테스트(1단계~): `ExecutorService` + `CountDownLatch`로 다중 스레드
+  요청을 만들고 최종 재고 수량/주문 결과의 정합성을 검증. 1단계는 단일
+  인스턴스·단일 락 전략 검증, 3단계는 다중 액터·다중 인스턴스·다중 리소스
+  (데드락 방지)까지, 4단계는 비관적/낙관적 락 선택과 재시도까지 확장.
+- 6단계 통신 실패 시뮬레이션: WMS 클라이언트 호출 실패/타임아웃을 재현하기
   위해 WireMock 또는 실패를 강제하는 테스트용 스텁 서버 사용을 검토.
 
-## 5. 5단계 멀티모듈 전환 계획 (개요만)
+## 5. 6단계 멀티모듈 전환 계획 (개요만)
 
 - `order-service`: 주문/결제/채널 로직, WMS 클라이언트(interfaces/infrastructure)
 - `wms-service`: 재고 데이터/로직 전담, 자체 DB 소유
 - `common`(필요 시): 두 서비스가 공유하는 DTO/계약
-- 세부 모듈 분리 작업 및 통신 방식(REST 등)은 5단계 착수 시 확정.
+- 세부 모듈 분리 작업 및 통신 방식(REST 등)은 6단계 착수 시 확정.
